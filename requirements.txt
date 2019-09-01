@@ -1,0 +1,4 @@
+## Setup python requirements
+
+tensorflow_datasets == 1.0.1
+numpy
