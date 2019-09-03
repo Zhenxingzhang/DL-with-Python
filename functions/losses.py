@@ -22,8 +22,8 @@ def svm_loss_naive(W, X, y, reg):
     loss = 0.0
     dW = np.zeros(W.shape)
     # why the margin is 1? answer here: http://cs231n.github.io/linear-classify/
-    delta = 1.0
-    batch_imgs = X.reshape(X.shape[0], -1)
+    delta = 1
+    batch_imgs = X
 
     num_sample = batch_imgs.shape[0]
     num_classes = W.shape[1]
@@ -63,21 +63,29 @@ def svm_loss_vectorized(W, X, y, reg):
     Inputs and outputs are the same as svm_loss_naive.
     """
     loss = 0
-    dW = np.zeros(W.shape)
     delta = 1
 
     num_sample = X.shape[0]
     num_classes = W.shape[1]
 
     scores = X.dot(W)
-    margins = np.maximum(0, scores - scores[y] + delta)
-    margins[y] = 0
+    yi_scores = scores[np.arange(num_sample), y].reshape(-1, 1)
+    margins = np.maximum(0, scores - yi_scores + delta)
+    margins[np.arange(num_sample), y] = 0
 
     loss += np.sum(margins)
 
     loss /= num_sample
-
     loss += reg * np.sum(W ** 2)
+
+    masks = np.zeros(margins.shape)
+    masks[margins > 0] = 1
+    masks[np.arange(num_sample), y] = - (np.sum(masks, axis=1))
+
+    dW = X.T.dot(masks)
+
+    dW *= 1.0/num_sample
+    dW += reg * 2 * W
 
     return loss, dW
 
