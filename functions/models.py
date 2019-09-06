@@ -1,4 +1,4 @@
-from functions.losses import svm_loss_vectorized
+from functions.losses import svm_loss_vectorized, softmax_loss_vectorized
 import numpy as np
 
 
@@ -188,3 +188,10 @@ class LinearClassifier(object):
 class LinearSVM(LinearClassifier):
     def loss(self, X_batch, y_batch, reg):
         return svm_loss_vectorized(self.W, X_batch, y_batch, reg)
+
+
+class Softmax(LinearClassifier):
+    """ A subclass that uses the Softmax + Cross-entropy loss function """
+
+    def loss(self, X_batch, y_batch, reg):
+        return softmax_loss_vectorized(self.W, X_batch, y_batch, reg)

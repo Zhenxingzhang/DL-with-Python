@@ -123,8 +123,62 @@ def softmax_loss_naive(W, X, y, reg):
         probs = exp_scores / exp_sum
         loss += -np.log(probs[y[i]])
 
+        for j in np.arange(num_classes):
+            dLdp = - 1 / probs[j]
+            dpdsum = - exp_scores[j] / exp_sum ** 2
+            dSdy = exp_scores[j]
+            dydW = X[i]
+
+            dW[:, j] += dLdp * dpdsum * dSdy * dydW
+        dW[:, y[i]] -= X[i]
+
     loss /= num_sample
 
     loss += reg * np.sum(W ** 2)
 
+    dW /= num_sample
+    dW += reg * 2 * W
+
     return loss, dW
+
+
+
+def softmax_loss_vectorized(W, X, y, reg):
+    """
+    Softmax loss function, vectorized version.
+
+    Inputs and outputs are the same as softmax_loss_naive.
+    """
+    num_sample = X.shape[0]
+    num_classes = W.shape[1]
+
+    # Initialize the loss and gradient to zero.
+    loss = 0.0
+    dW = np.zeros_like(W)
+
+    z = X.dot(W)
+    z -= z.max()
+    scores = np.exp(z)
+    scores_sum = np.sum(scores, axis=1)
+    probs = scores / scores_sum.reshape(-1, 1)
+
+    yi_probs = probs[np.arange(num_sample), y]
+
+    loss += np.sum(-np.log(yi_probs))
+
+    loss /= num_sample
+
+    loss += reg * np.sum(W ** 2)
+
+    dW += X.T.dot(probs)
+
+    binary = np.zeros((num_sample, num_classes))
+    binary[np.arange(num_sample), y] = 1
+    dW -= np.dot(X.T, binary)
+
+    dW /= num_sample
+
+    dW += reg * 2 * W
+
+    return loss, dW
+

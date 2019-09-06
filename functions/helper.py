@@ -1,5 +1,6 @@
 import tensorflow_datasets as tfds
 import numpy as np
+from random import randrange
 
 
 def get_CIFAR10_data(num_training=49000, num_validation=1000, num_test=1000, num_dev=500):
@@ -53,3 +54,25 @@ def get_CIFAR10_data(num_training=49000, num_validation=1000, num_test=1000, num
     X_dev = np.hstack([X_dev, np.ones((X_dev.shape[0], 1))])
 
     return X_train, y_train, X_val, y_val, X_test, y_test, X_dev, y_dev
+
+
+def grad_check_sparse(f, x, analytic_grad, num_checks=10, h=1e-5):
+    """
+    Sample a few random elements and only return numerical
+    gradients in these dimensions.
+    """
+    for i in range(num_checks):
+        ix = tuple([randrange(m) for m in x.shape])
+
+        oldval = x[ix]
+        x[ix] = oldval + h  # increment by h
+        fxph = f(x)  # evaluate f(x + h)
+        x[ix] = oldval - h  # increment by h
+        fxmh = f(x)  # evaluate f(x - h)
+        x[ix] = oldval  # reset!! Do not forget!
+
+        grad_numerical = (fxph - fxmh) / (2 * h)
+        grad_analytic = analytic_grad[ix]
+        rel_error = abs(grad_numerical - grad_analytic) / (abs(grad_numerical) + abs(grad_analytic))
+        print('numerical: %f analytic: %f, relative error: %e' %
+              (grad_numerical, grad_analytic, rel_error))
