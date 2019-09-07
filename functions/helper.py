@@ -48,10 +48,10 @@ def get_CIFAR10_data(num_training=49000, num_validation=1000, num_test=1000, num
     X_dev = X_dev - mean_image
 
     # add bias dimension and transform into columns
-    X_train = np.hstack([X_train, np.ones((X_train.shape[0], 1))])
-    X_val = np.hstack([X_val, np.ones((X_val.shape[0], 1))])
-    X_test = np.hstack([X_test, np.ones((X_test.shape[0], 1))])
-    X_dev = np.hstack([X_dev, np.ones((X_dev.shape[0], 1))])
+    # X_train = np.hstack([X_train, np.ones((X_train.shape[0], 1))])
+    # X_val = np.hstack([X_val, np.ones((X_val.shape[0], 1))])
+    # X_test = np.hstack([X_test, np.ones((X_test.shape[0], 1))])
+    # X_dev = np.hstack([X_dev, np.ones((X_dev.shape[0], 1))])
 
     return X_train, y_train, X_val, y_val, X_test, y_test, X_dev, y_dev
 
@@ -76,3 +76,39 @@ def grad_check_sparse(f, x, analytic_grad, num_checks=10, h=1e-5):
         rel_error = abs(grad_numerical - grad_analytic) / (abs(grad_numerical) + abs(grad_analytic))
         print('numerical: %f analytic: %f, relative error: %e' %
               (grad_numerical, grad_analytic, rel_error))
+
+
+def rel_error(x, y):
+    """ returns relative error """
+    return np.max(np.abs(x - y) / (np.maximum(1e-8, np.abs(x) + np.abs(y))))
+
+
+def eval_numerical_gradient(f, x, verbose=True, h=0.00001):
+    """
+    a naive implementation of numerical gradient of f at x
+    - f should be a function that takes a single argument
+    - x is the point (numpy array) to evaluate the gradient at
+    """
+
+    fx = f(x)  # evaluate function value at original point
+    grad = np.zeros_like(x)
+    # iterate over all indexes in x
+    it = np.nditer(x, flags=['multi_index'], op_flags=['readwrite'])
+    while not it.finished:
+
+        # evaluate function at x+h
+        ix = it.multi_index
+        oldval = x[ix]
+        x[ix] = oldval + h  # increment by h
+        fxph = f(x)  # evalute f(x + h)
+        x[ix] = oldval - h
+        fxmh = f(x)  # evaluate f(x - h)
+        x[ix] = oldval  # restore
+
+        # compute the partial derivative with centered formula
+        grad[ix] = (fxph - fxmh) / (2 * h)  # the slope
+        if verbose:
+            print(ix, grad[ix])
+        it.iternext()  # step to next dimension
+
+    return grad
