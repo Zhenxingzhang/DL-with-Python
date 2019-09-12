@@ -1,36 +1,42 @@
-import numpy as np
-
-from functions.helper import get_CIFAR10_data, rel_error
-from functions.layers import affine_forward
+from functions.models import TwoLayerNetV2
+from functions.helper import get_CIFAR10_data
+from functions.solver import Solver
 
 if __name__ == "__main__":
-    # Test the affine_forward function
 
-    num_inputs = 2
-    input_shape = (4, 5, 6)
-    output_dim = 3
+    # Load the (preprocessed) CIFAR10 data.
+    # Load the raw CIFAR-10 data.
+    X_train, y_train, X_val, y_val, X_test, y_test, X_dev, y_dev = get_CIFAR10_data()
+    print('Train data shape: ', X_train.shape)
+    print('Train labels shape: ', y_train.shape)
+    print('Validation data shape: ', X_val.shape)
+    print('Validation labels shape: ', y_val.shape)
+    print('Test data shape: ', X_test.shape)
+    print('Test labels shape: ', y_test.shape)
 
-    input_size = num_inputs * np.prod(input_shape)
-    weight_size = output_dim * np.prod(input_shape)
+    model = TwoLayerNetV2()
+    solver = None
 
-    x = np.linspace(-0.1, 0.5, num=input_size).reshape(num_inputs, *input_shape)
-    w = np.linspace(-0.2, 0.3, num=weight_size).reshape(np.prod(input_shape), output_dim)
-    b = np.linspace(-0.3, 0.1, num=output_dim)
+    ##############################################################################
+    # TODO: Use a Solver instance to train a TwoLayerNet that achieves at least  #
+    # 50% accuracy on the validation set.                                        #
+    ##############################################################################
+    # *****START OF YOUR CODE (DO NOT DELETE/MODIFY THIS LINE)*****
 
-    out, _ = affine_forward(x, w, b)
-    correct_out = np.array([[1.49834967, 1.70660132, 1.91485297],
-                            [3.25553199, 3.5141327, 3.77273342]])
+    data = {
+        'X_train':  X_train, # training data
+        'y_train':  y_train, # training labels
+        'X_val':  X_val, # validation data
+        'y_val':  y_val # validation labels
+    }
 
-    # Compare your output with ours. The error should be around e-9 or less.
-    print('Testing affine_forward function:')
-    print('difference: ', rel_error(out, correct_out))
+    solver = Solver(model, data,
+                    update_rule='sgd',
+                    optim_config={
+                        'learning_rate': 1e-3,
+                    },
+                    lr_decay=0.95,
+                    num_epochs=10, batch_size=100,
+                    print_every=1000)
 
-    # # Load the (preprocessed) CIFAR10 data.
-    # # Load the raw CIFAR-10 data.
-    # X_train, y_train, X_val, y_val, X_test, y_test, X_dev, y_dev = get_CIFAR10_data()
-    # print('Train data shape: ', X_train.shape)
-    # print('Train labels shape: ', y_train.shape)
-    # print('Validation data shape: ', X_val.shape)
-    # print('Validation labels shape: ', y_val.shape)
-    # print('Test data shape: ', X_test.shape)
-    # print('Test labels shape: ', y_test.shape)
+    solver.train()
