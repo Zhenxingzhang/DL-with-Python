@@ -1,19 +1,6 @@
-import numpy as np
 import pickle
+from functions.optimizer import *
 
-
-def sgd(w, dw, config=None):
-    """
-    Performs vanilla stochastic gradient descent.
-
-    config format:
-    - learning_rate: Scalar learning rate.
-    """
-    if config is None: config = {}
-    config.setdefault('learning_rate', 1e-2)
-
-    w -= config['learning_rate'] * dw
-    return w, config
 
 class Solver(object):
     """
@@ -149,7 +136,6 @@ class Solver(object):
 
         self._reset()
 
-
     def _reset(self):
         """
         Set up some book-keeping variables for optimization. Don't call this
@@ -168,7 +154,6 @@ class Solver(object):
         for p in self.model.params:
             d = {k: v for k, v in self.optim_config.items()}
             self.optim_configs[p] = d
-
 
     def _step(self):
         """

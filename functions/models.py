@@ -1,5 +1,5 @@
 from functions.losses import svm_loss_vectorized, softmax_loss_vectorized, softmax_loss
-from functions.layers import relu_forward, affine_relu_forward, affine_relu_backward
+from functions.layers import affine_forward, affine_backward, relu_forward, affine_relu_forward, affine_relu_backward
 from functions.helper import eval_numerical_gradient, rel_error
 import numpy as np
 
@@ -482,6 +482,117 @@ class TwoLayerNetV2(object):
         return loss, grads
 
 
+class FullyConnectedNet(object):
+    """
+    A fully-connected neural network with an arbitrary number of hidden layers,
+    ReLU nonlinearities, and a softmax loss function. This will also implement
+    dropout and batch/layer normalization as options. For a network with L layers,
+    the architecture will be
+
+    {affine - [batch/layer norm] - relu - [dropout]} x (L - 1) - affine - softmax
+
+    where batch/layer normalization and dropout are optional, and the {...} block is
+    repeated L - 1 times.
+
+    Similar to the TwoLayerNet above, learnable parameters are stored in the
+    self.params dictionary and will be learned using the Solver class.
+    """
+
+    def __init__(self, hidden_dims, input_dim=3 * 32 * 32, num_classes=10,
+                 dropout=1, normalization=None, reg=0.0,
+                 weight_scale=1e-2, dtype=np.float32, seed=None):
+        """
+        Initialize a new FullyConnectedNet.
+
+        Inputs:
+        - hidden_dims: A list of integers giving the size of each hidden layer.
+        - input_dim: An integer giving the size of the input.
+        - num_classes: An integer giving the number of classes to classify.
+        - dropout: Scalar between 0 and 1 giving dropout strength. If dropout=1 then
+          the network should not use dropout at all.
+        - normalization: What type of normalization the network should use. Valid values
+          are "batchnorm", "layernorm", or None for no normalization (the default).
+        - reg: Scalar giving L2 regularization strength.
+        - weight_scale: Scalar giving the standard deviation for random
+          initialization of the weights.
+        - dtype: A numpy datatype object; all computations will be performed using
+          this datatype. float32 is faster but less accurate, so you should use
+          float64 for numeric gradient checking.
+        - seed: If not None, then pass this random seed to the dropout layers. This
+          will make the dropout layers deteriminstic so we can gradient check the
+          model.
+        """
+        self.normalization = normalization
+        self.use_dropout = dropout != 1
+        self.reg = reg
+        self.num_layers = len(hidden_dims) + 1
+        self.dtype = dtype
+        self.params = {}
+
+        # Initialize the weights and biases of the network, storing all values in the self.params dictionary.
+        layer_input_dim = input_dim
+        all_layers = hidden_dims + [num_classes]
+
+        for idx in range(self.num_layers):
+            w_name = 'W{}'.format(idx)
+            b_name = 'b{}'.format(idx)
+            self.params[w_name] = np.random.normal(0, weight_scale, (layer_input_dim, all_layers[idx]))
+            self.params[b_name] = np.zeros((all_layers[idx],))
+            layer_input_dim = all_layers[idx]
+
+    def loss(self, X, y=None):
+        X = X.astype(self.dtype)
+        mode = 'test' if y is None else 'train'
+
+        # Implement the forward pass for the fully-connected net,
+        # computing the class scores for X and storing them in the scores variable.
+
+        hidden_input = X
+        hidden_caches = {}
+
+        forward_functions = [affine_relu_forward] * (self.num_layers - 1)
+        forward_functions.append(affine_forward)
+
+        for idx, foward_function in enumerate(forward_functions):
+            w_name = 'W{}'.format(idx)
+            b_name = 'b{}'.format(idx)
+            cache_name = 'c{}'.format(idx)
+            hidden_act, hidden_caches[cache_name] = foward_function(
+                hidden_input,
+                self.params[w_name],
+                self.params[b_name])
+            hidden_input = hidden_act
+
+        scores = hidden_input
+
+        # If test mode return early
+        if mode == 'test':
+            return scores
+
+        loss, grads = 0.0, {}
+        # Implement the backward pass for the fully-connected net.
+        loss, d_out = softmax_loss(scores, y)
+
+        for idx in range(self.num_layers):
+            w_name = 'W{}'.format(idx)
+            loss += 0.5 * self.reg * np.sum(
+                self.params[w_name] * self.params[w_name])
+
+        backword_functions = [affine_relu_backward] * (self.num_layers - 1)
+        backword_functions.append(affine_backward)
+
+        for idx, backword_function in reversed(list(enumerate(backword_functions))):
+            w_name = 'W{}'.format(idx)
+            b_name = 'b{}'.format(idx)
+            cache_name = 'c{}'.format(idx)
+            temp_dout, grads[w_name], grads[b_name] = backword_function(d_out, hidden_caches[cache_name])
+            d_out = temp_dout
+
+            grads[w_name] += self.reg * self.params[w_name]
+
+        return loss, grads
+
+
 if __name__ == "__main__":
     np.random.seed(231)
     N, D, H, C = 3, 5, 50, 7
@@ -536,3 +647,26 @@ if __name__ == "__main__":
             f = lambda _: model.loss(X, y)[0]
             grad_num = eval_numerical_gradient(f, model.params[name], verbose=False)
             print('%s relative error: %.2e' % (name, rel_error(grad_num, grads[name])))
+
+    # FullyConnectedNet validation
+    np.random.seed(231)
+    N, D, H1, H2, C = 2, 15, 20, 30, 10
+    X = np.random.randn(N, D)
+    y = np.random.randint(C, size=(N,))
+
+    for reg in [0, 3.14]:
+        print('Running check with reg = ', reg)
+        model = FullyConnectedNet([H1, H2], input_dim=D, num_classes=C,
+                                  reg=reg, weight_scale=5e-2, dtype=np.float64)
+
+        loss, grads = model.loss(X, y)
+        print('Initial loss: ', loss)
+
+        # Most of the errors should be on the order of e-7 or smaller.
+        # NOTE: It is fine however to see an error for W2 on the order of e-5
+        # for the check when reg = 0.0
+        for name in sorted(grads):
+            f = lambda _: model.loss(X, y)[0]
+            grad_num = eval_numerical_gradient(f, model.params[name], verbose=False, h=1e-5)
+            print('%s relative error: %.2e' % (name, rel_error(grad_num, grads[name])))
+

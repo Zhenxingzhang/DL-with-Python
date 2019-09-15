@@ -183,8 +183,7 @@ def softmax_loss_vectorized(W, X, y, reg):
     return loss, dW
 
 
-
-def softmax_loss(x, y):
+def softmax_loss(scores, y):
     """
     Computes the loss and gradient for softmax classification.
 
@@ -198,11 +197,11 @@ def softmax_loss(x, y):
     - loss: Scalar giving the loss
     - dx: Gradient of the loss with respect to x
     """
-    shifted_logits = x - np.max(x, axis=1, keepdims=True)
+    shifted_logits = scores - np.max(scores, axis=1, keepdims=True)
     Z = np.sum(np.exp(shifted_logits), axis=1, keepdims=True)
     log_probs = shifted_logits - np.log(Z)
     probs = np.exp(log_probs)
-    N = x.shape[0]
+    N = scores.shape[0]
     loss = -np.sum(log_probs[np.arange(N), y]) / N
     dx = probs.copy()
     dx[np.arange(N), y] -= 1
