@@ -1,5 +1,6 @@
 from functions.losses import svm_loss_vectorized, softmax_loss_vectorized, softmax_loss
-from functions.layers import affine_forward, affine_backward, relu_forward, affine_relu_forward, affine_relu_backward
+from functions.layers import affine_forward, affine_backward, relu_forward, affine_relu_forward, \
+    affine_relu_backward, affine_bn_relu_forward, affine_bn_relu_backward
 from functions.helper import eval_numerical_gradient, rel_error
 import numpy as np
 
@@ -540,9 +541,25 @@ class FullyConnectedNet(object):
             self.params[b_name] = np.zeros((all_layers[idx],))
             layer_input_dim = all_layers[idx]
 
+            if self.normalization == 'batchnorm' and idx < self.num_layers - 1:
+                gamma_name = 'ga{}'.format(idx)
+                beta_name = 'beta{}'.format(idx)
+                self.params[gamma_name] = 1.
+                self.params[beta_name] = 0.
+
+        self.bn_params = []
+        if self.normalization == 'batchnorm':
+            self.bn_params = [{'mode': 'train'} for i in range(self.num_layers - 1)]
+
     def loss(self, X, y=None):
         X = X.astype(self.dtype)
+        # print("input data mean:{} and std: {}".format(np.mean(X), np.std(X)))
         mode = 'test' if y is None else 'train'
+
+        # Set train/test mode for batchnorm params
+        if self.normalization == 'batchnorm':
+            for bn_param in self.bn_params:
+                bn_param['mode'] = mode
 
         # Implement the forward pass for the fully-connected net,
         # computing the class scores for X and storing them in the scores variable.
@@ -550,20 +567,29 @@ class FullyConnectedNet(object):
         hidden_input = X
         hidden_caches = {}
 
-        forward_functions = [affine_relu_forward] * (self.num_layers - 1)
-        forward_functions.append(affine_forward)
+        forward_functions = [affine_bn_relu_forward] * (self.num_layers - 1)
 
         for idx, foward_function in enumerate(forward_functions):
             w_name = 'W{}'.format(idx)
             b_name = 'b{}'.format(idx)
+            gamma = self.params['ga{}'.format(idx)] if self.normalization else None
+            beta = self.params['beta{}'.format(idx)] if self.normalization else None
+            bn_params = self.bn_params[idx] if self.normalization else None
             cache_name = 'c{}'.format(idx)
             hidden_act, hidden_caches[cache_name] = foward_function(
                 hidden_input,
                 self.params[w_name],
-                self.params[b_name])
+                self.params[b_name],
+                gamma,
+                beta,
+                bn_params
+            )
             hidden_input = hidden_act
 
-        scores = hidden_input
+        w_name = 'W{}'.format(self.num_layers - 1)
+        b_name = 'b{}'.format(self.num_layers - 1)
+        cache_name = 'c{}'.format(self.num_layers - 1)
+        scores, hidden_caches[cache_name] = affine_forward(hidden_input, self.params[w_name], self.params[b_name])
 
         # If test mode return early
         if mode == 'test':
@@ -578,14 +604,26 @@ class FullyConnectedNet(object):
             loss += 0.5 * self.reg * np.sum(
                 self.params[w_name] * self.params[w_name])
 
-        backword_functions = [affine_relu_backward] * (self.num_layers - 1)
-        backword_functions.append(affine_backward)
+        w_name = 'W{}'.format(self.num_layers - 1)
+        b_name = 'b{}'.format(self.num_layers - 1)
+        cache_name = 'c{}'.format(self.num_layers - 1)
+        d_out, grads[w_name], grads[b_name] = affine_backward(d_out, hidden_caches[cache_name])
+        grads[w_name] += self.reg * self.params[w_name]
 
-        for idx, backword_function in reversed(list(enumerate(backword_functions))):
+        backward_functions = [affine_bn_relu_backward] * (self.num_layers - 1)
+
+        for idx, backword_function in reversed(list(enumerate(backward_functions))):
             w_name = 'W{}'.format(idx)
             b_name = 'b{}'.format(idx)
             cache_name = 'c{}'.format(idx)
-            temp_dout, grads[w_name], grads[b_name] = backword_function(d_out, hidden_caches[cache_name])
+
+            if self.normalization:
+                gamma_name = 'ga{}'.format(idx)
+                beta_name = 'beta{}'.format(idx)
+                temp_dout, grads[w_name], grads[b_name], grads[gamma_name], grads[beta_name] =\
+                    backword_function(d_out, hidden_caches[cache_name])
+            else:
+                temp_dout, grads[w_name], grads[b_name] = backword_function(d_out, hidden_caches[cache_name])
             d_out = temp_dout
 
             grads[w_name] += self.reg * self.params[w_name]

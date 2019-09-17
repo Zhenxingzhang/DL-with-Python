@@ -49,13 +49,13 @@ if __name__ == "__main__":
         'y_val': data['y_val'],
     }
 
-    weight_scale = 1e-2  # Experiment with this!
-    learning_rate = 1e-2  # Experiment with this!
-    model = FullyConnectedNet([100, 100], input_dim=3 * 32 * 32, num_classes=10,
-                              weight_scale=weight_scale, dtype=np.float64)
-
-    initial_loss, _ = model.loss(small_data['X_train'], small_data['y_train'])
-    print("initial loss: {}".format(initial_loss))
+    # weight_scale = 1e-2  # Experiment with this!
+    # learning_rate = 1e-2  # Experiment with this!
+    # model = FullyConnectedNet([100, 100], input_dim=3 * 32 * 32, num_classes=10,
+    #                           weight_scale=weight_scale, dtype=np.float64)
+    #
+    # initial_loss, _ = model.loss(small_data['X_train'], small_data['y_train'])
+    # print("initial loss: {}".format(initial_loss))
 
     # solver = Solver(model, small_data,
     #                 print_every=10, num_epochs=20, batch_size=25,
@@ -77,10 +77,10 @@ if __name__ == "__main__":
         'y_val': data['y_val'],
     }
 
-    learning_rate = 2e-4  # Experiment with this!
-    weight_scale = 1e-1  # Experiment with this!
+    learning_rate = 2e-3  # Experiment with this!
+    weight_scale = 1e-2  # Experiment with this!
     model = FullyConnectedNet([100, 100, 100, 100, 100], input_dim=3 * 32 * 32,
-                              num_classes=10, reg=0.0,
+                              num_classes=10, reg=0.0, normalization="batchnorm",
                               weight_scale=weight_scale, dtype=np.float64)
 
     initial_loss, _ = model.loss(small_data['X_train'], small_data['y_train'])

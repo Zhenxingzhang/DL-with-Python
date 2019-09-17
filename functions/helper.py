@@ -134,3 +134,9 @@ def eval_numerical_gradient_array(f, x, df, h=1e-5):
         grad[ix] = np.sum((pos - neg) * df) / (2 * h)
         it.iternext()
     return grad
+
+
+def print_mean_std(x,axis=0):
+    print('  means: ', x.mean(axis=axis))
+    print('  stds:  ', x.std(axis=axis))
+    print()

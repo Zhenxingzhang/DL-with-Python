@@ -1,5 +1,5 @@
 import numpy as np
-from functions.helper import rel_error, eval_numerical_gradient_array
+from functions.helper import rel_error, eval_numerical_gradient_array, print_mean_std
 
 
 def relu_forward(inputs):
@@ -96,6 +96,7 @@ def affine_relu_forward(x, w, b):
     - cache: Object to give to the backward pass
     """
     a, fc_cache = affine_forward(x, w, b)
+    # print("activation mean: {} and std: {}".format(np.mean(a), np.std(a)))
     out, relu_cache = relu_forward(a)
     cache = (fc_cache, relu_cache)
     return out, cache
@@ -109,6 +110,159 @@ def affine_relu_backward(dout, cache):
     da = relu_backward(dout, relu_cache)
     dx, dw, db = affine_backward(da, fc_cache)
     return dx, dw, db
+
+
+def batchnorm_forward(x, gamma, beta, bn_param):
+    """
+        Forward pass for batch normalization.
+
+        During training the sample mean and (uncorrected) sample variance are
+        computed from minibatch statistics and used to normalize the incoming data.
+        During training we also keep an exponentially decaying running mean of the
+        mean and variance of each feature, and these averages are used to normalize
+        data at test-time.
+
+        At each timestep we update the running averages for mean and variance using
+        an exponential decay based on the momentum parameter:
+
+        running_mean = momentum * running_mean + (1 - momentum) * sample_mean
+        running_var = momentum * running_var + (1 - momentum) * sample_var
+
+        Note that the batch normalization paper suggests a different test-time
+        behavior: they compute sample mean and variance for each feature using a
+        large number of training images rather than using a running average. For
+        this implementation we have chosen to use running averages instead since
+        they do not require an additional estimation step; the torch7
+        implementation of batch normalization also uses running averages.
+
+        Input:
+        - x: Data of shape (N, D)
+        - gamma: Scale parameter of shape (D,)
+        - beta: Shift paremeter of shape (D,)
+        - bn_param: Dictionary with the following keys:
+          - mode: 'train' or 'test'; required
+          - eps: Constant for numeric stability
+          - momentum: Constant for running mean / variance.
+          - running_mean: Array of shape (D,) giving running mean of features
+          - running_var Array of shape (D,) giving running variance of features
+
+        Returns a tuple of:
+        - out: of shape (N, D)
+        - cache: A tuple of values needed in the backward pass
+        """
+    mode = bn_param["mode"]
+    eps = bn_param.get("eps", 1e-5)
+    momentum = bn_param.get("momentum", 0.9)
+
+    N, D = x.shape
+    running_mean = bn_param.get("running_mean", np.zeros(D, dtype=x.dtype))
+    running_var = bn_param.get("running_var", np.zeros(D, dtype=x.dtype))
+
+    scores, cache = None, None
+
+    if mode == "train":
+        N = x.shape[0]
+        sample_mean = np.sum(x, axis=0) / N
+        sample_variance = np.sum((x - sample_mean) ** 2, axis=0) / N
+        sample_stddev = np.sqrt(sample_variance + eps)
+
+        x_hat = (x - sample_mean) / sample_stddev
+
+        out = gamma * x_hat + beta
+
+        running_mean = momentum * running_mean + (1 - momentum) * sample_mean
+        running_var = momentum * running_var + (1 - momentum) * sample_variance
+
+        cache = (x, gamma, beta, eps, sample_mean, sample_variance, x_hat)
+
+    elif mode == "test":
+        running_std = np.sqrt(running_var + eps)
+        out = gamma * (x-running_mean)/running_std + beta
+    else:
+        raise ValueError('Invalid forward batchnorm mode "%s"' % mode)
+
+    # Store the updated running means back into bn_param
+    bn_param["running_mean"] = running_mean
+    bn_param["running_var"] = running_var
+
+    return out, cache
+
+
+def batchnorm_backward(dout, cache):
+    """
+    Backward pass for batch normalization.
+
+    For this implementation, you should write out a computation graph for
+    batch normalization on paper and propagate gradients backward through
+    intermediate nodes.
+
+    Inputs:
+    - dout: Upstream derivatives, of shape (N, D)
+    - cache: Variable of intermediates from batchnorm_forward.
+
+    Returns a tuple of:
+    - dx: Gradient with respect to inputs x, of shape (N, D)
+    - dgamma: Gradient with respect to scale parameter gamma, of shape (D,)
+    - dbeta: Gradient with respect to shift parameter beta, of shape (D,)
+    """
+    x, gamma, beta, eps, sample_mean, sample_variance, x_hat = cache
+
+    dgamma = np.sum(dout * x_hat, axis=0)
+    dbeta = np.sum(dout, axis=0)
+
+    N, D = x.shape
+
+    inv_var = 1. / np.sqrt(sample_variance + eps)
+
+    dxhat = dout * gamma
+    dsigma = np.sum(-0.5 * dxhat * (x - sample_mean) * np.power(inv_var, 3), axis=0)
+    dmu = np.sum(-dxhat * inv_var, axis=0) + dsigma * np.mean(-2 * (x - sample_mean), axis=0)
+
+    dx = dxhat * inv_var + dsigma * 2 * (x - sample_mean) / N + dmu / N
+
+    return dx, dgamma, dbeta
+
+
+def affine_bn_relu_forward(x, w, b, gamma=None, beta=None, bn_param=None):
+    """
+    Convenience layer that perorms an affine transform followed by a ReLU
+
+    Inputs:
+    - x: Input to the affine layer
+    - w, b: Weights for the affine layer
+
+    Returns a tuple of:
+    - out: Output from the ReLU
+    - cache: Object to give to the backward pass
+    """
+    # print("activation mean: {} and std: {}".format(np.mean(x), np.std(x)))
+
+    a, fc_cache = affine_forward(x, w, b)
+    # print(bn_param)
+
+    if bn_param is None:
+        out, relu_cache = relu_forward(a)
+        cache = (fc_cache, relu_cache, None)
+    else:
+        a_hat, bn_cache = batchnorm_forward(a, gamma, beta, bn_param)
+        out, relu_cache = relu_forward(a_hat)
+        cache = (fc_cache, relu_cache, bn_cache)
+
+    return out, cache
+
+
+def affine_bn_relu_backward(dout, cache):
+    fc_cache, relu_cache, bn_cache = cache
+
+    if bn_cache is None:
+        da = relu_backward(dout, relu_cache)
+        dx, dw, db = affine_backward(da, fc_cache)
+        return dx, dw, db
+    else:
+        da = relu_backward(dout, relu_cache)
+        dbn, dgamma, dbeta = batchnorm_backward(da, bn_cache)
+        dx, dw, db = affine_backward(dbn, fc_cache)
+        return dx, dw, db, dgamma, dbeta
 
 
 if __name__ == "__main__":
@@ -197,3 +351,31 @@ if __name__ == "__main__":
     print('dx error: ', rel_error(dx_num, dx))
     print('dw error: ', rel_error(dw_num, dw))
     print('db error: ', rel_error(db_num, db))
+
+    # Check the training-time forward pass by checking means and variances
+    # of features both before and after batch normalization
+
+    # Simulate the forward pass for a two-layer network
+    np.random.seed(231)
+    N, D1, D2, D3 = 200, 50, 60, 3
+    X = np.random.randn(N, D1)
+    W1 = np.random.randn(D1, D2)
+    W2 = np.random.randn(D2, D3)
+    a = np.maximum(0, X.dot(W1)).dot(W2)
+
+    print('Before batch normalization:')
+    print_mean_std(a, axis=0)
+
+    gamma = np.ones((D3,))
+    beta = np.zeros((D3,))
+    # Means should be close to zero and stds close to one
+    print('After batch normalization (gamma=1, beta=0)')
+    a_norm, _ = batchnorm_forward(a, gamma, beta, {'mode': 'train'})
+    print_mean_std(a_norm, axis=0)
+
+    gamma = np.asarray([1.0, 2.0, 3.0])
+    beta = np.asarray([11.0, 12.0, 13.0])
+    # Now means should be close to beta and stds close to gamma
+    print('After batch normalization (gamma=', gamma, ', beta=', beta, ')')
+    a_norm, _ = batchnorm_forward(a, gamma, beta, {'mode': 'train'})
+    print_mean_std(a_norm, axis=0)
